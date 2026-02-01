@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Editor Muebles El Nono</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- LIBRERIA PARA EL ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root { 
+            --primary: #8B5E3C; 
+            --bg: #F3F4F6; 
+            --sidebar: #1F2937; 
+            --text: #1f2937;
+            --text-light: #6b7280;
+            --green: #10B981;
+            --green-hover: #059669;
+            --blue: #2563EB;
+            --blue-hover: #1d4ed8;
+            --purple: #8b5cf6;
+            --purple-hover: #7c3aed;
+            --orange: #f97316;
+            --github: #24292f;
+            --github-hover: #000000;
+            --danger: #EF4444;
+            --danger-bg: #fee2e2;
+        }
+        * { box-sizing: border-box; }
+        
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; height: 100vh; margin: 0; overflow: hidden; color: var(--text); }
+        
+        /* SIDEBAR */
+        aside { width: 260px; background: var(--sidebar); color: #fff; padding: 20px; display: flex; flex-direction: column; flex-shrink: 0; z-index: 10; }
+        aside h2 { font-size: 1rem; margin: 0 0 20px 0; border-bottom: 1px solid #374151; padding-bottom: 15px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+        .nav-menu { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; }
+        .nav-item { padding: 12px 15px; cursor: pointer; border-radius: 8px; opacity: 0.8; font-size: 0.95rem; transition: 0.2s; color: #d1d5db; }
+        .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); opacity: 1; font-weight: 600; color: #fff; }
+        
+        /* MAIN */
+        main { flex: 1; padding: 30px; overflow-y: auto; position: relative; scroll-behavior: smooth; }
+        .panel { display: none; max-width: 800px; margin: 0 auto; padding-bottom: 160px; }
+        .panel.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* CARDS */
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; border: 1px solid #e5e7eb; }
+        
+        /* FORMS */
+        h1 { margin-top: 0; font-size: 1.8rem; color: #111; margin-bottom: 20px; font-weight: 700; }
+        label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9rem; color: #4b5563; }
+        input, textarea, select { width: 100%; padding: 10px 12px; margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; background: #fff; transition: 0.2s; font-family: inherit; }
+        input:focus, textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.1); }
+        textarea { height: 80px; resize: vertical; }
+        .row { display: flex; gap: 20px; } .col { flex: 1; }
+
+        /* --- BOTONES FLOTANTES (PIE DE PÁGINA) --- */
+        .fab-container {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+            z-index: 100; pointer-events: none; padding: 15px;
+            background: linear-gradient(to top, rgba(243,244,246,1) 50%, rgba(243,244,246,0));
+            flex-wrap: wrap;
+        }
+        
+        .fab-btn {
+            pointer-events: auto; border: none; border-radius: 50px; padding: 8px 16px;
+            color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: transform 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            text-decoration: none; white-space: nowrap;
+        }
+        .fab-btn svg { width: 16px; height: 16px; fill: currentColor; }
+        .fab-btn:active { transform: scale(0.95); }
+        
+        .fab-draft { background-color: var(--blue); }
+        .fab-backup { background-color: var(--purple); }
+        .fab-restore { background-color: var(--orange); }
+        .fab-download { background-color: var(--green); }
+        .fab-github { background-color: var(--github); }
+
+        /* --- GRID DE PRODUCTOS (TARJETITAS) --- */
+        .prod-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); 
+            gap: 15px; 
+            margin-top: 20px; 
+        }
+        .prod-card {
+            background: white; border: 1px solid #e5e7eb; border-radius: 12px;
+            padding: 10px; display: flex; flex-direction: column;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: 0.2s;
+        }
+        .prod-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        
+        .prod-img {
+            width: 100%; height: 120px; object-fit: cover; border-radius: 8px;
+            background: #f3f4f6; margin-bottom: 10px; border: 1px solid #eee;
+        }
+        .prod-info { flex: 1; margin-bottom: 10px; }
+        .prod-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+        .prod-cat { font-size: 0.8rem; color: var(--text-light); }
+        .prod-price-tag { font-size: 0.85rem; color: var(--green); font-weight: 600; margin-top: 2px; }
+        
+        .prod-actions { display: flex; gap: 8px; margin-top: auto; }
+        .btn-card {
+            flex: 1; padding: 6px; border-radius: 6px; border: none;
+            font-size: 0.8rem; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
+            transition: 0.2s;
+        }
+        .btn-card svg { width: 14px; height: 14px; fill: currentColor; }
+        .btn-card-edit { background: #eff6ff; color: var(--blue); }
+        .btn-card-edit:hover { background: #dbeafe; }
+        .btn-card-del { background: #fef2f2; color: var(--danger); }
+        .btn-card-del:hover { background: #fee2e2; }
+
+        /* Estado Vacío */
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-light); border: 2px dashed #e5e7eb; border-radius: 12px; grid-column: 1 / -1; }
+
+        /* --- BOTÓN AGREGAR ARTÍCULO (Dashed) --- */
+        .btn-new-prod { 
+            width: 100%; padding: 15px; 
+            background: white; border: 2px dashed #d1d5db; 
+            color: var(--primary); font-weight: 600; 
+            border-radius: 12px; cursor: pointer; 
+            margin-bottom: 20px; transition: 0.2s; 
+            display: flex; justify-content: center; align-items: center; gap: 8px; 
+            font-size: 1rem;
+        }
+        .btn-new-prod:hover { border-color: var(--primary); background: #fff7ed; transform: scale(1.01); }
+        .btn-new-prod svg { width: 24px; height: 24px; fill: currentColor; }
+
+        /* --- OPTIMIZADOR ESTILO VIEJO (PEQUEÑO) --- */
+        .opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 20px; }
+        .opt-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .opt-card img { width: 100%; border-radius: 6px; height: 80px; object-fit: cover; margin-bottom: 5px; cursor: zoom-in; }
+        .opt-card p { font-size: 0.7rem; margin: 0 0 5px 0; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-opt-single { background: #f0fdf4; border: 1px solid var(--green); color: var(--green-hover); width: 100%; padding: 4px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 3px; }
+        .btn-opt-single:hover { background: var(--green); color: white; }
+        .btn-opt-single svg { width: 12px; height: 12px; fill: currentColor; }
+
+        /* --- CHIPS CATEGORIAS --- */
+        .cat-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; justify-content: center; }
+        .cat-chip { background: #fff; border: 1px solid #e5e7eb; padding: 4px 4px 4px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 500; color: #374151; }
+        
+        .cat-actions-group { display: flex; gap: 4px; }
+        .cat-btn-icon { width: 24px; height: 24px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+        .cat-btn-edit { background: #eff6ff; color: var(--blue); }
+        .cat-btn-edit:hover { background: #dbeafe; }
+        .cat-btn-del { background: #fef2f2; color: var(--danger); }
+        .cat-btn-del:hover { background: #fee2e2; }
+        .cat-btn-icon svg { width: 14px; height: 14px; fill: currentColor; }
+
+        .btn-add-cat { background-color: var(--blue); color: white; padding: 0 15px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; height: 43px; margin-top: 1px; font-size: 0.9rem; }
+
+        /* --- MODAL EDITAR --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+        .modal-overlay.open { display: flex; animation: fadeModal 0.2s ease-out; }
+        @keyframes fadeModal { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-content { background: #fff; width: 95%; max-width: 500px; max-height: 85vh; overflow-y: auto; border-radius: 16px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #f3f4f6; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #9ca3af; }
+        .btn-save-modal { width: 100%; padding: 12px; background: var(--green); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 1rem; margin-top: 10px; }
+
+        /* ESTILOS EXTRA IMAGES */
+        .extra-img-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .btn-add-img { background: transparent; border: 1px dashed var(--primary); color: var(--primary); width: 100%; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 0.9rem; margin-bottom: 15px; }
+        .btn-add-img:hover { background: #fff7ed; }
+        .btn-del-img { background: #fef2f2; color: var(--danger); border: 1px solid #fee2e2; border-radius: 6px; width: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+        .upload-zone { border: 2px dashed #d1d5db; padding: 40px 20px; text-align: center; border-radius: 12px; background: #f9fafb; cursor: pointer; transition: 0.2s; }
+        .upload-zone:hover { border-color: var(--primary); background: #fff7ed; }
+        .upload-icon svg { width: 40px; height: 40px; fill: var(--primary); margin-bottom: 10px; }
+
+        /* --- LIGHTBOX --- */
+        .lightbox { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; display: none; align-items: center; justify-content: center; cursor: zoom-out; animation: fadeIn 0.2s; }
+        .lightbox.open { display: flex; }
+        .lightbox img { max-width: 95%; max-height: 95%; object-fit: contain; box-shadow: 0 0 30px rgba(0,0,0,0.5); border-radius: 4px; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; height: 100%; overflow: auto; }
+            aside { width: 100%; height: auto; padding: 15px; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; position: sticky; top: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            aside h2 { margin: 0; font-size: 0.9rem; border: none; padding: 0; }
+            .nav-menu { flex-direction: row; width: 100%; overflow-x: auto; padding-bottom: 5px; margin-top: 10px; }
+            .nav-item { padding: 6px 12px; font-size: 0.85rem; white-space: nowrap; background: rgba(255,255,255,0.1); margin-right: 5px; border: 1px solid rgba(255,255,255,0.1); }
+            main { padding: 20px 15px; }
+            .panel { padding-bottom: 140px; }
+            .row { flex-direction: column; gap: 0; } .col { width: 100%; }
+            .fab-container { bottom: 0; padding: 10px; background: rgba(243,244,246,0.95); backdrop-filter: blur(5px); border-top: 1px solid #e5e7eb; }
+            .fab-btn { padding: 8px 12px; font-size: 0.75rem; gap: 4px; flex-grow: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <h2>Panel de Control</h2>
+        <div class="nav-menu">
+            <div class="nav-item active" onclick="switchPanel(0)">Inicio</div>
+            <div class="nav-item" onclick="switchPanel(1)">Config</div>
+            <div class="nav-item" onclick="switchPanel(2)">Categorías</div>
+            <div class="nav-item" onclick="switchPanel(3)">Artículos</div>
+            <div class="nav-item" onclick="switchPanel(4)">Optimizador</div>
+        </div>
+    </aside>
+
+    <main id="main-content">
+        
+        <!-- INPUT OCULTO PARA RESTAURAR -->
+        <input type="file" id="restoreInput" accept=".json" style="display:none" onchange="importBackup(this)">
+
+        <!-- BARRA DE BOTONES INFERIOR -->
+        <div class="fab-container">
+            <button class="fab-btn fab-draft" onclick="saveToBrowser()" title="Guardar borrador en navegador">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                Borrador
+            </button>
+            <button class="fab-btn fab-backup" onclick="exportBackup()" title="Descargar copia de seguridad .json">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10zM12 10l-4 4h3v4h2v-4h3l-4-4z"/></svg>
+                Backup
+            </button>
+            <button class="fab-btn fab-restore" onclick="document.getElementById('restoreInput').click()" title="Restaurar desde archivo .json">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
+                Restaurar
+            </button>
+            <button class="fab-btn fab-download" onclick="downloadSite()" title="Descargar archivo .html">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                Descargar
+            </button>
+            <a href="https://github.com/ElNoNo26/El-NoNo/upload/main" target="_blank" class="fab-btn fab-github" title="Subir a GitHub">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                GitHub
+            </a>
+        </div>
+
+        <!-- PANEL 1: INICIO -->
+        <div id="panel-0" class="panel active">
+            <div class="welcome-header" style="margin-bottom:20px;">
+                <h1>¡Hola, SeBaS! 👋</h1>
+                <p style="color:var(--text-light);">Bienvenido al Editor de <strong>Muebles El Nono</strong>.</p>
+            </div>
+
+            <div id="draft-alert" class="card" style="display:none; background: #fffbeb; border: 1px solid #fcd34d;">
+                <h4 style="margin-top:0; color: #b45309; font-size:1rem;">⚠️ Borrador encontrado</h4>
+                <p style="font-size:0.9rem; margin-bottom:15px;">¿Quieres recuperar tu última sesión guardada?</p>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-add-cat" style="background:#b45309; height:35px; padding:0 15px;" onclick="loadDraft()">Sí, recuperar</button>
+                    <button class="btn-add-cat" style="background:transparent; color:#b45309; border:1px solid #b45309; height:35px; padding:0 15px;" onclick="clearDraft()">No, borrar</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                    <span class="upload-icon">
+                        <svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                    </span>
+                    <h3 style="margin:0; font-size:1.1rem; color:var(--primary);">Cargar index.html</h3>
+                    <p style="margin:5px 0 0; color:#666; font-size:0.9rem;">Toca aquí para subir tu página actual.</p>
+                    <input type="file" id="fileInput" accept=".html" style="display:none" onchange="loadFile(this)">
+                </div>
+                <p id="status" style="margin-top: 15px; color: var(--green); font-weight: 600; text-align: center; font-size: 1rem;"></p>
+            </div>
+        </div>
+
+        <!-- PANEL 2: GENERAL -->
+        <div id="panel-1" class="panel">
+            <h1>Configuración</h1>
+            <div class="card">
+                <div class="row">
+                    <div class="col"><label>Nombre Tienda</label><input type="text" id="cfg-name"></div>
+                    <div class="col"><label>WhatsApp</label><input type="tel" id="cfg-whatsapp"></div>
+                </div>
+                <label>Logo URL</label><input type="text" id="cfg-logo">
+                <label>Título Banner</label><input type="text" id="cfg-heroTitle">
+                <label>Subtítulo Banner</label><input type="text" id="cfg-heroSubtitle">
+                <label>Imagen Fondo Banner</label><input type="text" id="cfg-heroImage">
+                <label>Texto Despedida</label><textarea id="cfg-about"></textarea>
+            </div>
+        </div>
+
+        <!-- PANEL 3: CATEGORIAS -->
+        <div id="panel-2" class="panel">
+            <h1>Categorías</h1>
+            <div class="card">
+                <div class="row" style="margin-bottom: 20px;">
+                    <div class="col">
+                        <input type="text" id="new-cat" placeholder="Nueva categoría..." style="margin-bottom:0">
+                    </div>
+                    <div style="width: auto;">
+                        <button class="btn-add-cat" onclick="addCategory()">Agregar</button>
+                    </div>
+                </div>
+                <div style="border-top:1px solid #eee; margin-top:20px;"></div>
+                <div id="cat-list" class="cat-container"></div>
+            </div>
+        </div>
+
+        <!-- PANEL 4: ARTICULOS -->
+        <div id="panel-3" class="panel">
+            <h1>Artículos</h1>
+            <button class="btn-new-prod" onclick="openProductModal()">
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                Agregar Nuevo Artículo
+            </button>
+            <div id="prod-list" class="prod-grid"></div>
+        </div>
+
+        <!-- PANEL 5: OPTIMIZADOR -->
+        <div id="panel-4" class="panel">
+            <h1>Optimizador de Imágenes</h1>
+            <div class="card">
+                <p style="color:var(--text-light); margin-bottom:20px; font-size:0.95rem;">
+                    Sube tus fotos aquí para reducirlas de tamaño. Toca la imagen para verla en grande. 
+                </p>
+                <div class="upload-zone" onclick="document.getElementById('opt-input').click()" style="padding: 30px 20px;">
+                    <span class="upload-icon">
+                        <svg viewBox="0 0 24 24" style="width:40px; height:40px; fill:var(--primary); margin-bottom:10px;"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                    </span>
+                    <h3 style="margin:0; font-size:1rem; color:var(--primary);">Tocar para subir fotos</h3>
+                    <input type="file" id="opt-input" multiple accept="image/jpeg,image/png,image/webp" style="display:none" onchange="procesarImagenes()">
+                </div>
+                <div style="margin-top:15px;">
+                    <button class="btn-new-prod" onclick="descargarZIP()" style="margin:0; width:100%; background:var(--primary); color:white; border:none; font-weight:600;">📦 Descargar Todo (ZIP)</button>
+                </div>
+                <div style="margin-top: 15px; text-align: center;">
+                    <a href="https://banana.ovo.re/" target="_blank" style="font-size: 0.85rem; color: #9ca3af; text-decoration: none; border-bottom: 1px dotted #9ca3af;">
+                        💧 Gemini Watermark Remove
+                    </a>
+                </div>
+                <div id="opt-grid" class="opt-grid"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL EDICIÓN PRODUCTO -->
+    <div class="modal-overlay" id="product-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin:0; font-size:1.3rem;">Detalles del Artículo</h3>
+                <button class="modal-close" onclick="closeProductModal()">&times;</button>
+            </div>
+            
+            <input type="hidden" id="prod-id">
+            <label>Nombre</label><input type="text" id="prod-name">
+            <div class="row">
+                <div class="col"><label>Categoría</label><select id="prod-cat"></select></div>
+                <div class="col"><label>Precio ($)</label><input type="number" id="prod-price" placeholder="Opcional"></div>
+            </div>
+            <label>Medidas</label><input type="text" id="prod-dims">
+            <label>Foto Principal (Portada)</label><input type="text" id="prod-img">
+            
+            <!-- NUEVO: SECCION MULTIPLES FOTOS -->
+            <label>Galería de Fotos Extra</label>
+            <div id="extra-img-container"></div>
+            <button type="button" class="btn-add-img" onclick="addExtraImgField()">+ Agregar foto extra</button>
+
+            <label>Descripción</label><textarea id="prod-desc"></textarea>
+            <div style="margin-bottom: 20px; display:flex; align-items:center; gap:10px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
+                <input type="checkbox" id="prod-featured" style="width: 18px; height: 18px; margin:0;"> 
+                <label style="margin:0; font-size:0.95rem; cursor:pointer;" for="prod-featured">Destacar en Inicio</label>
+            </div>
+            <button class="btn-save-modal" onclick="saveProduct()">Guardar Cambios</button>
+        </div>
+    </div>
+
+    <!-- LIGHTBOX OPTIMIZADOR -->
+    <div class="lightbox" id="opt-lightbox" onclick="closeOptLightbox()">
+        <img id="opt-lightbox-img" src="" alt="Vista previa">
+    </div>
+
+    <script>
+        // --- LOGIC ---
+        let db = { config: {}, categories: [], products: [] };
+        let originalHTML = ""; 
+        let currentPanelIndex = 0;
+        let resultadosOpt = [];
+
+        window.onload = function() {
+            if(localStorage.getItem('muebles_draft')) document.getElementById('draft-alert').style.display = 'block';
+            setupTouch();
+        };
+
+        function switchPanel(index) {
+            currentPanelIndex = index;
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(`panel-${index}`).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.nav-item')[index].classList.add('active');
+            document.querySelector('main').scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Swipe Logic
+        function setupTouch() {
+            const main = document.getElementById('main-content');
+            let startX = 0, startY = 0;
+            main.addEventListener('touchstart', e => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }, {passive: true});
+            main.addEventListener('touchend', e => {
+                const diffX = startX - e.changedTouches[0].clientX;
+                const diffY = startY - e.changedTouches[0].clientY;
+                if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY)) {
+                    if (diffX > 0) switchPanel(Math.min(4, currentPanelIndex + 1));
+                    else switchPanel(Math.max(0, currentPanelIndex - 1));
+                }
+            }, {passive: true});
+        }
+
+        function loadFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalHTML = e.target.result;
+                try {
+                    const doc = new DOMParser().parseFromString(originalHTML, 'text/html');
+                    const scriptTag = doc.getElementById('site-data');
+                    if(scriptTag) {
+                        db = JSON.parse(scriptTag.textContent);
+                        // Asegurar estructura
+                        if(!db.products) db.products = [];
+                        if(!db.categories) db.categories = [];
+                        document.getElementById('status').innerText = "✅ Archivo cargado";
+                        refreshUI();
+                    } else {
+                        alert("No se encontró la base de datos en el archivo. Verifica que sea el index.html correcto.");
+                    }
+                } catch (err) { alert("Error al leer el archivo."); console.error(err); }
+            };
+            reader.readAsText(file);
+        }
+
+        function saveToBrowser() {
+            saveGeneral();
+            localStorage.setItem('muebles_draft', JSON.stringify(db));
+            if(originalHTML) localStorage.setItem('muebles_html_template', originalHTML);
+            const btn = document.querySelector('.fab-draft');
+            const originalHTMLBtn = btn.innerHTML;
+            btn.innerHTML = "✅ Listo"; 
+            setTimeout(() => btn.innerHTML = originalHTMLBtn, 1500);
+        }
+
+        function loadDraft() {
+            db = JSON.parse(localStorage.getItem('muebles_draft'));
+            if(localStorage.getItem('muebles_html_template')) originalHTML = localStorage.getItem('muebles_html_template');
+            refreshUI();
+            document.getElementById('draft-alert').style.display = 'none';
+        }
+        function clearDraft() { localStorage.removeItem('muebles_draft'); document.getElementById('draft-alert').style.display = 'none'; }
+
+        // --- BACKUP FUNCTIONS ---
+        function exportBackup() {
+            saveGeneral();
+            const dataStr = JSON.stringify(db, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "backup-muebles.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function importBackup(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    if(json.config && json.products && json.categories) {
+                        db = json;
+                        refreshUI();
+                        alert("✅ Datos restaurados correctamente.");
+                    } else {
+                        alert("❌ El archivo no es un backup válido.");
+                    }
+                } catch(err) {
+                    alert("Error leyendo el archivo.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function refreshUI() {
+            document.getElementById('cfg-name').value = db.config.name || '';
+            let wa = db.config.whatsapp || '';
+            if(wa.startsWith('549')) wa = wa.substring(3);
+            document.getElementById('cfg-whatsapp').value = wa;
+            document.getElementById('cfg-logo').value = db.config.logo || '';
+            document.getElementById('cfg-heroTitle').value = db.config.heroTitle || '';
+            document.getElementById('cfg-heroSubtitle').value = db.config.heroSubtitle || '';
+            document.getElementById('cfg-heroImage').value = db.config.heroImage || '';
+            document.getElementById('cfg-about').value = db.config.aboutText || '';
+            renderCats();
+            renderProdList();
+        }
+
+        function renderCats() {
+            const list = document.getElementById('cat-list');
+            list.innerHTML = db.categories.map((c, i) => `
+                <div class="cat-chip">
+                    <span>${c}</span>
+                    <div class="cat-actions-group">
+                        <button class="cat-btn-icon cat-btn-edit" onclick="editCat(${i})" title="Editar nombre">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                        <button class="cat-btn-icon cat-btn-del" onclick="delCat(${i})" title="Eliminar categoría">
+                            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addCategory() {
+            const val = document.getElementById('new-cat').value.trim();
+            if(val && !db.categories.includes(val)) { db.categories.push(val); document.getElementById('new-cat').value = ''; renderCats(); }
+        }
+
+        // --- NUEVA FUNCION: EDITAR CATEGORIA ---
+        function editCat(index) {
+            const oldName = db.categories[index];
+            const newName = prompt("Nuevo nombre para la categoría:", oldName);
+
+            if (newName && newName.trim() !== "" && newName !== oldName) {
+                // Verificar duplicados
+                if(db.categories.includes(newName.trim())) {
+                    alert("¡Esa categoría ya existe!");
+                    return;
+                }
+
+                const finalName = newName.trim();
+                
+                // 1. Actualizar productos que tenian la categoria vieja
+                let count = 0;
+                db.products.forEach(p => {
+                    if (p.category === oldName) {
+                        p.category = finalName;
+                        count++;
+                    }
+                });
+
+                // 2. Actualizar lista de categorias
+                db.categories[index] = finalName;
+
+                // 3. Renderizar todo
+                renderCats();
+                renderProdList();
+                
+                // Feedback
+                if(count > 0) alert(`Se actualizó la categoría en ${count} productos.`);
+            }
+        }
+
+        function delCat(i) { if(confirm('¿Borrar categoría?')) { db.categories.splice(i, 1); renderCats(); } }
+
+        /* --- LOGICA PRODUCTOS & GALERÍA EXTRA --- */
+        
+        // CORRECCIÓN CLAVE: Ahora acepta un ID (número) o null
+        function openProductModal(prodId = null) {
+            const sel = document.getElementById('prod-cat');
+            sel.innerHTML = db.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+            
+            const extraContainer = document.getElementById('extra-img-container');
+            extraContainer.innerHTML = ''; // Limpiar extra imgs anteriores
+
+            if(prodId !== null) {
+                // Buscar producto por ID
+                const prod = db.products.find(p => p.id === prodId);
+                if (!prod) return; // Por si acaso
+
+                document.getElementById('prod-id').value = prod.id;
+                document.getElementById('prod-name').value = prod.name;
+                sel.value = prod.category;
+                document.getElementById('prod-dims').value = prod.dims;
+                document.getElementById('prod-price').value = prod.price || '';
+                document.getElementById('prod-img').value = prod.img;
+                document.getElementById('prod-desc').value = prod.desc;
+                document.getElementById('prod-featured').checked = prod.featured;
+                
+                // Cargar extra images si existen
+                if(prod.gallery && Array.isArray(prod.gallery)) {
+                    prod.gallery.forEach(url => addExtraImgField(url));
+                }
+
+            } else {
+                document.getElementById('prod-id').value = '';
+                document.getElementById('prod-name').value = '';
+                document.getElementById('prod-dims').value = '';
+                document.getElementById('prod-price').value = '';
+                document.getElementById('prod-img').value = '';
+                document.getElementById('prod-desc').value = '';
+                document.getElementById('prod-featured').checked = false;
+            }
+            document.getElementById('product-modal').classList.add('open');
+        }
+
+        function addExtraImgField(value = '') {
+            const container = document.getElementById('extra-img-container');
+            const div = document.createElement('div');
+            div.className = 'extra-img-row';
+            div.innerHTML = `
+                <input type="text" class="extra-img-input" value="${value}" placeholder="URL foto extra..." style="margin-bottom:0;">
+                <button type="button" class="btn-del-img" onclick="this.parentElement.remove()">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                </button>
+            `;
+            container.appendChild(div);
+        }
+
+        function closeProductModal() { document.getElementById('product-modal').classList.remove('open'); }
+
+        function renderProdList() {
+            const list = document.getElementById('prod-list');
+            
+            if(db.products.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <svg width="40" height="40" fill="#d1d5db" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
+                        <p>¡Tu lista está vacía! Agrega tu primer artículo.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // CORRECCIÓN CLAVE: Pasamos solo el ID (p.id) en el onclick
+            list.innerHTML = db.products.map(p => `
+                <div class="prod-card">
+                    <img src="${p.img}" class="prod-img" onerror="this.src='https://via.placeholder.com/150'">
+                    <div class="prod-info">
+                        <div class="prod-title">${p.name}</div>
+                        <div class="prod-cat">${p.category}</div>
+                        ${p.price ? `<div class="prod-price-tag">$${p.price}</div>` : ''}
+                    </div>
+                    <div class="prod-actions">
+                        <button class="btn-card btn-card-edit" onclick="openProductModal(${p.id})">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            Editar
+                        </button>
+                        <button class="btn-card btn-card-del" onclick="delProd(${p.id})">
+                            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                            Borrar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function saveProduct() {
+            const idVal = document.getElementById('prod-id').value;
+            
+            // Recolectar URLs de galeria extra
+            const galleryInputs = document.querySelectorAll('.extra-img-input');
+            const galleryUrls = [];
+            galleryInputs.forEach(inp => {
+                if(inp.value.trim()) galleryUrls.push(inp.value.trim());
+            });
+
+            const newProd = {
+                id: idVal ? parseInt(idVal) : Date.now(),
+                name: document.getElementById('prod-name').value,
+                category: document.getElementById('prod-cat').value,
+                dims: document.getElementById('prod-dims').value,
+                price: document.getElementById('prod-price').value,
+                img: document.getElementById('prod-img').value,
+                gallery: galleryUrls, // Nuevo Array
+                desc: document.getElementById('prod-desc').value,
+                featured: document.getElementById('prod-featured').checked
+            };
+            if(!newProd.name) return alert("Nombre obligatorio");
+            if(idVal) { const idx = db.products.findIndex(x => x.id == idVal); if(idx !== -1) db.products[idx] = newProd; } else { db.products.push(newProd); }
+            closeProductModal(); renderProdList();
+        }
+
+        function delProd(id) { if(confirm("¿Eliminar?")) { db.products = db.products.filter(p => p.id !== id); renderProdList(); } }
+
+        function saveGeneral() {
+            db.config.name = document.getElementById('cfg-name').value;
+            let rawWa = document.getElementById('cfg-whatsapp').value.replace(/\D/g, ''); 
+            if(rawWa) { db.config.whatsapp = '549' + rawWa; } else { db.config.whatsapp = ''; }
+            db.config.logo = document.getElementById('cfg-logo').value;
+            db.config.heroTitle = document.getElementById('cfg-heroTitle').value;
+            db.config.heroSubtitle = document.getElementById('cfg-heroSubtitle').value;
+            db.config.heroImage = document.getElementById('cfg-heroImage').value;
+            db.config.aboutText = document.getElementById('cfg-about').value;
+        }
+
+        function downloadSite() {
+            if(!originalHTML) return alert("Carga el index.html");
+            saveGeneral();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(originalHTML, 'text/html');
+            doc.getElementById('site-data').textContent = JSON.stringify(db, null, 4);
+            const blob = new Blob(["<!DOCTYPE html>\n" + doc.documentElement.outerHTML], {type: "text/html"});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = "index.html";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+
+        /* --- OPTIMIZADOR LOGICA --- */
+        function procesarImagenes() {
+            const files = document.getElementById("opt-input").files;
+            const grid = document.getElementById("opt-grid");
+            if (!resultadosOpt.length) grid.innerHTML = ""; 
+
+            if (!files.length) return;
+
+            [...files].forEach((file, i) => {
+                const img = new Image();
+                const reader = new FileReader();
+                reader.onload = e => img.src = e.target.result;
+                reader.readAsDataURL(file);
+
+                img.onload = () => {
+                    const max = 1600; 
+                    let w = img.width, h = img.height;
+                    if (w > h && w > max) { h *= max / w; w = max; } 
+                    else if (h > max) { w *= max / h; h = max; }
+
+                    const canvas = document.createElement("canvas");
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+
+                    canvas.toBlob(blob => {
+                        const url = URL.createObjectURL(blob);
+                        // Nombre por defecto "imagen"
+                        const nombreFinal = `imagen-${Date.now()}-${i}.webp`;
+                        
+                        resultadosOpt.push({ nombre: nombreFinal, blob });
+                        const index = resultadosOpt.length - 1;
+
+                        const card = document.createElement("div");
+                        card.className = "opt-card";
+                        card.innerHTML = `
+                            <img src="${url}" onclick="openOptLightbox('${url}')">
+                            <p>${(file.size/1024).toFixed(0)} KB → ${(blob.size/1024).toFixed(0)} KB</p>
+                            <button class="btn-opt-single" onclick="descargarUna(${index})">
+                                <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                                Guardar
+                            </button>
+                        `;
+                        grid.appendChild(card);
+                    }, "image/webp", 0.85); 
+                };
+            });
+        }
+
+        function descargarUna(index) {
+            const item = resultadosOpt[index];
+            let inputNombre = prompt("Guardar imagen como (sin extensión):", "");
+
+            if (inputNombre !== null) { 
+                let nombreFinal = inputNombre.trim();
+                if (!nombreFinal) nombreFinal = item.nombre; 
+                if (!nombreFinal.toLowerCase().endsWith('.webp')) nombreFinal += '.webp';
+
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(item.blob);
+                a.download = nombreFinal;
+                a.click();
+            }
+        }
+
+        function descargarZIP() {
+            if (!resultadosOpt.length) return alert("Sube imágenes primero");
+            const zip = new JSZip();
+            resultadosOpt.forEach(img => zip.file(img.nombre, img.blob));
+            zip.generateAsync({ type: "blob" }).then(content => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(content);
+                a.download = "imagenes-optimizadas-muebles.zip";
+                a.click();
+            });
+        }
+
+        // Lightbox Functions
+        function openOptLightbox(src) {
+            const lb = document.getElementById('opt-lightbox');
+            const img = document.getElementById('opt-lightbox-img');
+            img.src = src;
+            lb.classList.add('open');
+        }
+        function closeOptLightbox() {
+            document.getElementById('opt-lightbox').classList.remove('open');
+        }
+    </script>
+</body>
+</html>
